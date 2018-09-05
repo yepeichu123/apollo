@@ -26,10 +26,12 @@ using std::vector;
 namespace apollo {
 namespace perception {
 
+  // 对点云分割进行初始化
 bool CNNSegmentation::Init() {
   string config_file;
   string proto_file;
   string weight_file;
+  // 指定模块名“CNNSegmentation”，利用ConfigManager读取配置文件，结构体文件和训练好的权值文件
   if (!GetConfigs(&config_file, &proto_file, &weight_file)) {
     return false;
   }
@@ -37,6 +39,7 @@ bool CNNSegmentation::Init() {
   AINFO << "--     proto_file: " << proto_file;
   AINFO << "--    weight_file: " << weight_file;
 
+  // 从配置文件中读取cnn网络参数
   if (!apollo::common::util::GetProtoFromFile(config_file, &cnnseg_param_)) {
     AERROR << "Failed to load config file of CNNSegmentation.";
   }
@@ -118,11 +121,13 @@ bool CNNSegmentation::Init() {
   CHECK(feature_blob_ != nullptr) << "`" << feature_blob_name
                                   << "` not exists!";
 
+  // 实例化聚类对象并对其进行初始化
   cluster2d_.reset(new cnnseg::Cluster2D());
   if (!cluster2d_->Init(height_, width_, range_)) {
     AERROR << "Fail to init cluster2d for CNNSegmentation";
   }
 
+  // 实例化特征生成对象并对其进行初始化
   feature_generator_.reset(new cnnseg::FeatureGenerator<float>());
   if (!feature_generator_->Init(feature_param, feature_blob_.get())) {
     AERROR << "Fail to init feature generator for CNNSegmentation";
@@ -132,6 +137,7 @@ bool CNNSegmentation::Init() {
   return true;
 }
 
+  // 输入roi点云和排好序的id以及分割选项，内部包含完整点云，输出聚类物体
 bool CNNSegmentation::Segment(const pcl_util::PointCloudPtr& pc_ptr,
                               const pcl_util::PointIndices& valid_indices,
                               const SegmentationOptions& options,
@@ -172,13 +178,17 @@ bool CNNSegmentation::Segment(const pcl_util::PointCloudPtr& pc_ptr,
       cnnseg_param_.has_use_all_grids_for_clustering()
           ? cnnseg_param_.use_all_grids_for_clustering()
           : false;
+  
+  // 对点云进行聚类，找到类别概率值大于物体阈值的点，以其grid作为id来设置障碍点
   cluster2d_->Cluster(*category_pt_blob_, *instance_pt_blob_, pc_ptr,
                       valid_indices, objectness_thresh,
                       use_all_grids_for_clustering);
   PERF_BLOCK_END("[CNNSeg] clustering");
 
+  // 对障碍物每个网格中的所有id的置信度和高度进行中值滤波
   cluster2d_->Filter(*confidence_pt_blob_, *height_pt_blob_);
 
+  // 获取置信度阈值和高度阈值以及最小点云数量
   float confidence_thresh = cnnseg_param_.has_confidence_thresh()
                                 ? cnnseg_param_.confidence_thresh()
                                 : 0.1;
@@ -187,6 +197,7 @@ bool CNNSegmentation::Segment(const pcl_util::PointCloudPtr& pc_ptr,
   int min_pts_num = cnnseg_param_.has_min_pts_num()
                         ? static_cast<int>(cnnseg_param_.min_pts_num())
                         : 3;
+  // 利用置信度、高度和最小点云数量三个阈值来判断障碍物的质量，如果三个条件都满足，则新建一个物体实例
   cluster2d_->GetObjects(confidence_thresh, height_thresh, min_pts_num,
                          objects);
   PERF_BLOCK_END("[CNNSeg] post-processing");
@@ -194,6 +205,7 @@ bool CNNSegmentation::Segment(const pcl_util::PointCloudPtr& pc_ptr,
   return true;
 }
 
+  // 利用配置管理器从固定名称“CNNSegmentation”读取模型配置文件，进一步从模型配置文件中读取配置文件、proto文件和权值文件
 bool CNNSegmentation::GetConfigs(string* config_file, string* proto_file,
                                  string* weight_file) {
   ConfigManager* config_manager = ConfigManager::instance();
