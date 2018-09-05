@@ -27,11 +27,12 @@ namespace cnnseg {
 #define CV_PI 3.1415926535897932384626433832795
 #define EPS 1e-6
 
+  // 对特征生成对象进行初始化
 template <typename Dtype>
 bool FeatureGenerator<Dtype>::Init(const FeatureParam& feature_param,
                                    caffe::Blob<Dtype>* out_blob) {
   out_blob_ = out_blob;
-
+  // 设置特征范围、宽度和高度等相关信息
   // raw feature parameters
   range_ = feature_param.has_point_cloud_range()
                ? static_cast<int>(feature_param.point_cloud_range())
@@ -55,7 +56,8 @@ bool FeatureGenerator<Dtype>::Init(const FeatureParam& feature_param,
   for (size_t i = 0; i < log_table_.size(); ++i) {
     log_table_[i] = std::log(static_cast<Dtype>(1 + i));
   }
-
+  
+  // 设置特征相关数据，如最大高度，平均高度等信息的内存块指针
   Dtype* out_blob_data = nullptr;
   out_blob_data = out_blob_->mutable_cpu_data();
 
@@ -93,6 +95,7 @@ bool FeatureGenerator<Dtype>::Init(const FeatureParam& feature_param,
   return true;
 }
 
+// 特征生成
 template <typename Dtype>
 void FeatureGenerator<Dtype>::Generate(
     const apollo::perception::pcl_util::PointCloudConstPtr& pc_ptr) {
@@ -132,6 +135,7 @@ void FeatureGenerator<Dtype>::Generate(
     }
     map_idx_[i] = pos_y * width_ + pos_x;
 
+    // 读取点云高度和强度，统计最大高度，计算平均高度和平均强度，并对每个id中的点云数量进行统计
     int idx = map_idx_[i];
     float pz = points[i].z;
     float pi = points[i].intensity / 255.0;
@@ -143,7 +147,7 @@ void FeatureGenerator<Dtype>::Generate(
     mean_intensity_data_[idx] += static_cast<Dtype>(pi);
     count_data_[idx] += Dtype(1);
   }
-
+  // 若某个id的统计数量低于预设值，则认为其没有点云。否则求其平均高度和平均强度
   for (int i = 0; i < siz; ++i) {
     if (count_data_[i] < EPS) {
       max_height_data_[i] = Dtype(0);
@@ -156,9 +160,11 @@ void FeatureGenerator<Dtype>::Generate(
   }
 }
 
+// 模板特例化为类型float, double
 template bool FeatureGenerator<float>::Init(const FeatureParam& feature_param,
                                             caffe::Blob<float>* blob);
-
+  
+// 模板特例化为类型float, double
 template void FeatureGenerator<float>::Generate(
     const apollo::perception::pcl_util::PointCloudConstPtr& pc_ptr);
 
